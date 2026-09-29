@@ -774,6 +774,41 @@ export async function readResponseJsonCapped(response, maxBytes) {
   return JSON.parse(await readResponseTextCapped(response, maxBytes));
 }
 
+/** Binary counterpart of readResponseTextCapped, for protobuf/octet-stream upstreams. */
+export async function readResponseBufferCapped(response, maxBytes) {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    const err = new Error('Upstream response too large');
+    err.code = 'RESPONSE_TOO_LARGE';
+    throw err;
+  }
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    const buf = Buffer.from(await response.arrayBuffer());
+    if (buf.byteLength > maxBytes) {
+      const err = new Error('Upstream response too large');
+      err.code = 'RESPONSE_TOO_LARGE';
+      throw err;
+    }
+    return buf;
+  }
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      try { await reader.cancel(); } catch { /* no-op */ }
+      const err = new Error('Upstream response too large');
+      err.code = 'RESPONSE_TOO_LARGE';
+      throw err;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c)));
+}
+
 /**
  * Return the existing promise for a cache key, or create one and remove it
  * only when that exact promise settles.
@@ -1767,6 +1802,142 @@ function rocketLaunchesProxy() {
 
   return {
     name: 'rocket-launches-proxy',
+    configureServer(server) {
+      install(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      install(server.middlewares);
+    },
+  };
+}
+
+/**
+ * Malaysia GTFS-Realtime vehicle-position proxy — live train/bus positions
+ * from data.gov.my's free, keyless Open API (developer.data.gov.my).
+ *
+ * Upstream: GET https://api.data.gov.my/gtfs-realtime/vehicle-position/{agency}/
+ * (?category=... for prasarana), one call per configured feed, each returning
+ * a GTFS-realtime `FeedMessage` protobuf. No API key. Feeds refresh upstream
+ * every ~30 s, so this proxy caches the merged result for 25 s, coalesces
+ * concurrent client requests, and serves the last-good merge if a refresh
+ * fails (some feeds are known to be intermittently empty/erroring per the
+ * upstream docs — a single bad feed must not blank the whole layer).
+ *
+ * GET /api/malaysia-transit/vehicles →
+ *   { fetchedAt, sources: [{ id, label, ok, count, error? }], vehicles: [...] }
+ * Each vehicle carries the feed's own real vehicle id/label and trip/route
+ * id — there is no synthetic per-vehicle numbering.
+ *
+ * @returns {import('vite').Plugin}
+ */
+function malaysiaTransitProxy() {
+  const TTL_MS = 25_000;
+  const UPSTREAM_TIMEOUT_MS = 12_000;
+  const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+  const GtfsRealtimeBindings = createRequire(import.meta.url)('gtfs-realtime-bindings');
+
+  /** All feeds documented at developer.data.gov.my/realtime-api/gtfs-realtime. */
+  const FEEDS = Object.freeze([
+    { id: 'ktmb', label: 'KTMB' },
+    { id: 'prasarana', category: 'rapid-bus-kl', label: 'Rapid Bus KL' },
+    { id: 'prasarana', category: 'rapid-bus-mrtfeeder', label: 'MRT Feeder' },
+    { id: 'prasarana', category: 'rapid-bus-kuantan', label: 'Rapid Bus Kuantan' },
+    { id: 'prasarana', category: 'rapid-bus-penang', label: 'Rapid Bus Penang' },
+    { id: 'mybas-kangar', label: 'myBAS Kangar' },
+    { id: 'mybas-alor-setar', label: 'myBAS Alor Setar' },
+    { id: 'mybas-kota-bharu', label: 'myBAS Kota Bharu' },
+    { id: 'mybas-kuala-terengganu', label: 'myBAS Kuala Terengganu' },
+    { id: 'mybas-ipoh', label: 'myBAS Ipoh' },
+    { id: 'mybas-seremban-a', label: 'myBAS Seremban A' },
+    { id: 'mybas-seremban-b', label: 'myBAS Seremban B' },
+    { id: 'mybas-melaka', label: 'myBAS Melaka' },
+    { id: 'mybas-johor', label: 'myBAS Johor Bahru' },
+    { id: 'mybas-kuching', label: 'myBAS Kuching' },
+  ]);
+
+  let cache = null; // { at, body }
+  const inFlight = new Map();
+
+  function feedUrl(feed) {
+    const url = new URL(`https://api.data.gov.my/gtfs-realtime/vehicle-position/${feed.id}/`);
+    if (feed.category) url.searchParams.set('category', feed.category);
+    return url;
+  }
+
+  async function fetchOneFeed(feed) {
+    const sourceKey = feed.category ? `${feed.id}:${feed.category}` : feed.id;
+    try {
+      const upstream = await fetch(feedUrl(feed), { signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
+      if (!upstream.ok) throw new Error(`HTTP ${upstream.status}`);
+      const buf = await readResponseBufferCapped(upstream, MAX_RESPONSE_BYTES);
+      const parsed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(buf);
+      const vehicles = [];
+      for (const entity of parsed.entity || []) {
+        const v = entity.vehicle;
+        const pos = v?.position;
+        if (!v || !pos || !Number.isFinite(pos.latitude) || !Number.isFinite(pos.longitude)) continue;
+        vehicles.push({
+          id: `${sourceKey}-${v.vehicle?.id || entity.id}`,
+          source: feed.label,
+          vehicleLabel: v.vehicle?.label || v.vehicle?.id || null,
+          routeId: v.trip?.routeId || null,
+          tripId: v.trip?.tripId || null,
+          lat: pos.latitude,
+          lon: pos.longitude,
+          bearingDeg: Number.isFinite(pos.bearing) ? pos.bearing : null,
+          speedMps: Number.isFinite(pos.speed) ? pos.speed : null,
+          timestamp: Number(v.timestamp) > 0 ? Number(v.timestamp) * 1000 : null,
+        });
+      }
+      return { id: sourceKey, label: feed.label, ok: true, count: vehicles.length, vehicles };
+    } catch (error) {
+      return { id: sourceKey, label: feed.label, ok: false, count: 0, error: error?.message || String(error), vehicles: [] };
+    }
+  }
+
+  async function refresh() {
+    const results = await Promise.all(FEEDS.map(fetchOneFeed));
+    const vehicles = results.flatMap((r) => r.vehicles);
+    const sources = results.map(({ vehicles: _v, ...rest }) => rest);
+    const body = JSON.stringify({ fetchedAt: Date.now(), sources, vehicles });
+    const fresh = { at: Date.now(), body };
+    cache = fresh;
+    return fresh;
+  }
+
+  function install(middlewares) {
+    middlewares.use('/api/malaysia-transit/vehicles', async (req, res) => {
+      if (req.method !== 'GET') {
+        res.writeHead(405, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        return;
+      }
+      if (cache && Date.now() - cache.at < TTL_MS) {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-GEV-Cache': 'HIT' });
+        res.end(cache.body);
+        return;
+      }
+      const stale = cache;
+      const request = coalesceProxyRequest(inFlight, 'refresh', refresh);
+      try {
+        const fresh = await request.promise;
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-GEV-Cache': request.shared ? 'INFLIGHT' : 'MISS' });
+        res.end(fresh.body);
+      } catch (error) {
+        if (stale) {
+          console.warn(`[malaysia-transit-proxy] refresh failed (${error?.message || error}) — serving stale`);
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-GEV-Cache': 'STALE-ERROR' });
+          res.end(stale.body);
+          return;
+        }
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Malaysia GTFS-Realtime unavailable' }));
+      }
+    });
+  }
+
+  return {
+    name: 'malaysia-transit-proxy',
     configureServer(server) {
       install(server.middlewares);
     },
@@ -7156,6 +7327,71 @@ function normalizeRssArticles(xml, limit = 5) {
   return articles;
 }
 
+/**
+ * Keyless forward-geocoding proxy for the location-search box — GEV's search
+ * hard-required a Google Maps API key with no fallback (self-hosters without
+ * one saw "Search failed" on every query). Nominatim's usage policy requires
+ * a real User-Agent and at most ~1 req/s, which a browser fetch can't supply
+ * (browsers refuse to let JS set User-Agent) — so this reuses the same
+ * serialized `_nominatimQueue` the reverse-geocode proxy above already
+ * throttles through, rather than adding a second independent limiter.
+ * GET /api/nominatim/search?q=<query> → Nominatim's raw jsonv2 array (top 1).
+ */
+function nominatimSearchProxy() {
+  function install(middlewares) {
+    middlewares.use('/api/nominatim/search', async (req, res) => {
+      if (req.method !== 'GET') {
+        res.writeHead(405, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        return;
+      }
+      const url = new URL(req.url || '/', 'http://localhost');
+      const q = (url.searchParams.get('q') || '').trim();
+      if (!q) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'q is required' }));
+        return;
+      }
+      const task = _nominatimQueue.then(async () => {
+        const waitMs = Math.max(0, 1100 - (Date.now() - _nominatimLastRequestAt));
+        if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+        _nominatimLastRequestAt = Date.now();
+        const params = new URLSearchParams({
+          format: 'jsonv2',
+          q,
+          addressdetails: '1',
+          limit: '1',
+          'accept-language': 'en',
+        });
+        return fetchRegionalJson(`https://nominatim.openstreetmap.org/search?${params}`, {
+          headers: {
+            'User-Agent': 'GodsEyeView/0.1 (+https://github.com/bilawalsidhu/gods-eye-view)',
+            Referer: 'https://github.com/bilawalsidhu/gods-eye-view',
+          },
+        });
+      });
+      _nominatimQueue = task.catch(() => null);
+      try {
+        const results = await task;
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ results: Array.isArray(results) ? results : [] }));
+      } catch (error) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: error?.message || 'Nominatim unavailable' }));
+      }
+    });
+  }
+  return {
+    name: 'nominatim-search-proxy',
+    configureServer(server) {
+      install(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      install(server.middlewares);
+    },
+  };
+}
+
 function fetchRegionalPlace(point) {
   const task = _nominatimQueue.then(async () => {
     const waitMs = Math.max(0, 1100 - (Date.now() - _nominatimLastRequestAt));
@@ -7745,6 +7981,8 @@ export default defineConfig(({ mode }) => {
       tomtomProxy(),
       firmsProxy(),
       rocketLaunchesProxy(),
+      malaysiaTransitProxy(),
+      nominatimSearchProxy(),
       terrainHeightsProxy(),
       adsbdbProxy(),
       overpassProxy(),

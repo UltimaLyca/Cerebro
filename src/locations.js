@@ -341,37 +341,112 @@ export function findPoiByName(query) {
 /** Distinguishes an authority veto from a genuine not-found result. */
 export const CANCELLED_SEARCH = Object.freeze({ cancelled: true });
 
+/** Maps Nominatim's OSM `addresstype`/`class` taxonomy onto the Google Geocoding
+ * `types` values geocodeNavigationMode() already understands, so the keyless
+ * fallback below reuses the exact same framing logic as the Google path. */
+const NOMINATIM_TYPE_TO_GOOGLE_TYPES = Object.freeze({
+  country: ['country'],
+  state: ['administrative_area_level_1'],
+  region: ['administrative_area_level_1'],
+  province: ['administrative_area_level_1'],
+  city: ['locality'],
+  town: ['locality'],
+  municipality: ['locality'],
+  village: ['locality'],
+  suburb: ['neighborhood'],
+  neighbourhood: ['neighborhood'],
+  quarter: ['neighborhood'],
+  postcode: ['postal_code'],
+  road: ['route'],
+  highway: ['route'],
+  park: ['park'],
+  nature_reserve: ['park'],
+  university: ['university'],
+  college: ['university'],
+  aerodrome: ['airport'],
+  stadium: ['stadium'],
+});
+
 /**
- * Geocode a place name using Google Geocoding API, then fly there at a scale
- * appropriate to the request. Countries and cities use their viewport by
- * default; precise landmarks/buildings use close landmark framing.
+ * Keyless forward-geocoding fallback via the `/api/nominatim/search` proxy
+ * (OpenStreetMap Nominatim), used when no Google Maps API key is configured.
+ * Simpler than the Google path — no building-bounds resolution, no
+ * Places-near-view recovery input (that step still runs afterward, it just
+ * has nothing of its own to seed) — but it means search works for free
+ * instead of failing outright.
+ * @param {string} query
+ * @returns {Promise<{lat:number, lng:number, label:string, types:string[], viewport:object|null}|null>}
+ */
+async function geocodeViaNominatim(query) {
+  const response = await fetch(`/api/nominatim/search?q=${encodeURIComponent(query)}`);
+  if (!response.ok) return null;
+  const data = await response.json();
+  const hit = Array.isArray(data?.results) ? data.results[0] : null;
+  const lat = Number(hit?.lat);
+  const lng = Number(hit?.lon);
+  if (!hit || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const types = NOMINATIM_TYPE_TO_GOOGLE_TYPES[hit.addresstype] || NOMINATIM_TYPE_TO_GOOGLE_TYPES[hit.class] || [];
+  const bbox = Array.isArray(hit.boundingbox) ? hit.boundingbox.map(Number) : null;
+  const viewport = bbox && bbox.every(Number.isFinite)
+    ? { southwest: { lat: bbox[0], lng: bbox[2] }, northeast: { lat: bbox[1], lng: bbox[3] } }
+    : null;
+  return { lat, lng, label: hit.display_name || query, types, viewport };
+}
+
+/**
+ * Geocode a place name — via the Google Geocoding API when a key is
+ * configured, or a free OpenStreetMap Nominatim fallback when it isn't —
+ * then fly there at a scale appropriate to the request. Countries and
+ * cities use their viewport by default; precise landmarks/buildings use
+ * close landmark framing.
  */
 export async function searchAndFlyTo(viewer, query, options = {}) {
   const apiKey = window.__GOOGLE_MAPS_API_KEY__ || import.meta.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) throw new Error('No Google Maps API key available for geocoding');
 
   const beforeFly = typeof options.beforeFly === 'function' ? options.beforeFly : null;
   const mayFly = () => beforeFly === null || beforeFly() !== false;
 
-  // Viewport-biased geocode — the same bias annotationResolver's geocodePlace uses:
-  // "Sixth Street" spoken over Austin must prefer the Sixth Street on screen, not a
-  // same-named road in another city (or the wrong end of town — the W 6th vs E 6th bug).
-  let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
-  const bias = viewportBias(viewer);
-  if (bias) url += `&bounds=${bias}`;
-  const response = await fetch(url);
-  const data = await response.json();
-
-  const result = (data.status === 'OK' && data.results?.length) ? data.results[0] : null;
-  let lat = result?.geometry.location.lat;
-  let lng = result?.geometry.location.lng;
-  let label = result ? result.formatted_address : null;
-  let types = result?.types || [];
-  let viewport = result ? (result.geometry.bounds || result.geometry.viewport) : null;
+  let result, lat, lng, label, types, viewport;
+  if (apiKey) {
+    // Viewport-biased geocode — the same bias annotationResolver's geocodePlace uses:
+    // "Sixth Street" spoken over Austin must prefer the Sixth Street on screen, not a
+    // same-named road in another city (or the wrong end of town — the W 6th vs E 6th bug).
+    let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
+    const bias = viewportBias(viewer);
+    if (bias) url += `&bounds=${bias}`;
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      result = (data.status === 'OK' && data.results?.length) ? data.results[0] : null;
+    } catch {
+      result = null;
+    }
+    lat = result?.geometry.location.lat;
+    lng = result?.geometry.location.lng;
+    label = result ? result.formatted_address : null;
+    types = result?.types || [];
+    viewport = result ? (result.geometry.bounds || result.geometry.viewport) : null;
+  }
+  // Fall back to the free Nominatim path whenever there's no configured key,
+  // AND whenever a configured key still came up empty — a key can be valid
+  // for other Google APIs (e.g. Map Tiles) without Geocoding enabled on it,
+  // and that must degrade to "still searchable", not "always fails".
+  if (!result) {
+    const nomi = await geocodeViaNominatim(query);
+    if (nomi) {
+      result = nomi;
+      lat = nomi.lat;
+      lng = nomi.lng;
+      label = nomi.label;
+      types = nomi.types;
+      viewport = nomi.viewport;
+    }
+  }
 
   // Places-near-view recovery (annotationResolver's twin): a missed geocode, or one
   // that landed implausibly far from the view centre, snaps back to a view-biased
   // Places hit within the trust bound — "the Capitol" means the one on screen.
+  // (No-op when Google Places isn't configured — placesTextSearch degrades to null.)
   const recovered = await placesNearViewRecovery(viewer, query, result ? { lat, lon: lng } : null);
   if (recovered) {
     lat = recovered.lat;

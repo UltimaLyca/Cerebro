@@ -176,6 +176,16 @@ const LAYER_ALIASES = new Map([
   ['firms', 'local-firms'],
   ['fires', 'local-firms'],
   ['active fires', 'local-firms'],
+  ['rain radar', 'rain-radar'],
+  ['radar', 'rain-radar'],
+  ['weather radar', 'rain-radar'],
+  ['rain', 'rain-radar'],
+  ['precipitation', 'rain-radar'],
+  ['malaysia transit', 'malaysia-transit'],
+  ['malaysian transit', 'malaysia-transit'],
+  ['trains', 'malaysia-transit'],
+  ['buses', 'malaysia-transit'],
+  ['ktmb', 'malaysia-transit'],
 ]);
 
 const CITY_ALIASES = new Map([

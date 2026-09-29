@@ -19,7 +19,7 @@ const FULL_FIRE = {
 test('firms analyst record: full record maps every contract field', () => {
   const r = mapAnalystRecord(FULL_FIRE);
   assert.deepEqual(r, {
-    id: 'FIRE-00007',
+    id: 'FIRE-N21-1753600000000-30.51_-98.21',
     lat: 30.51,
     lon: -98.21,
     frp: 1520.4,
@@ -29,9 +29,20 @@ test('firms analyst record: full record maps every contract field', () => {
   });
 });
 
-test('firms analyst record: id matches the layer pick-id convention (5-digit pad)', () => {
-  assert.equal(mapAnalystRecord({ ...FULL_FIRE, index: 0 }).id, 'FIRE-00000');
-  assert.equal(mapAnalystRecord({ ...FULL_FIRE, index: 12345 }).id, 'FIRE-12345');
+test('firms analyst record: id is derived from real detection fields, not render-array index', () => {
+  // Same detection fields, different index — id must be identical (not
+  // index-derived), proving it reflects the real detection, not render order.
+  assert.equal(
+    mapAnalystRecord({ ...FULL_FIRE, index: 0 }).id,
+    mapAnalystRecord({ ...FULL_FIRE, index: 12345 }).id,
+  );
+});
+
+test('firms analyst record: id falls back to the index form only when real fields are missing', () => {
+  assert.equal(
+    mapAnalystRecord({ index: 7, lat: null, lon: null, satellite: '', sensor: '', acqMs: 0 }).id,
+    'FIRE-00007',
+  );
 });
 
 test('firms analyst record: blank satellite falls back to sensor, then null', () => {

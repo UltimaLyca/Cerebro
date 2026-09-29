@@ -1,0 +1,33 @@
+# Deployment on cerebro.affantorla.com, wired into the host's existing
+# Traefik reverse proxy (docker_default network). Runs keyless by default —
+# see .env.example in the repo root for optional provider keys (Google Maps,
+# Cesium ion, OpenAI voice, FIRMS, etc.) to add later via env_file.
+services:
+  cerebro:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cerebro
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4173/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - docker_default
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.cerebro.rule: "Host(`cerebro.affantorla.com`)"
+      traefik.http.routers.cerebro.entrypoints: "websecure"
+      traefik.http.routers.cerebro.middlewares: "secureHeaders@file"
+      traefik.http.routers.cerebro.tls.certresolver: "cfdns"
+      traefik.http.routers.cerebro.tls.options: "securetls@file"
+      traefik.http.services.cerebro.loadbalancer.server.port: "4173"
+
+networks:
+  docker_default:
+    external: true

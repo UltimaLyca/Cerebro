@@ -175,6 +175,20 @@ export const DATA_CREDITS = [
       '<a href="https://www.submarinecablemap.com" target="_blank" rel="noopener">submarinecablemap.com</a> ' +
       '(CC BY-NC-SA 3.0 — NonCommercial)',
   },
+  {
+    key: 'rainviewer',
+    html:
+      'Rain radar: ' +
+      '<a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a> ' +
+      '(free for personal/educational use)',
+  },
+  {
+    key: 'malaysia-transit',
+    html:
+      'Malaysia transit (KTMB, Rapid Bus/MRT Feeder, myBAS): ' +
+      '<a href="https://developer.data.gov.my/realtime-api/gtfs-realtime" target="_blank" rel="noopener">' +
+      'data.gov.my GTFS-Realtime</a> — Malaysia Public Sector Open Data',
+  },
 ];
 
 /**

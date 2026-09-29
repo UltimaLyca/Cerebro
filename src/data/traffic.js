@@ -43,6 +43,8 @@ import { holdContinuousRender, releaseContinuousRender } from '../renderGovernor
 
 /** @const {string} Proxy endpoint for Overpass API queries */
 const OVERPASS_URL = '/api/overpass';
+/** Human-readable HUD text for a real (TomTom-derived) congestion bucket. */
+const TRAFFIC_BUCKET_LABELS = Object.freeze({ free: 'FREE FLOW', slow: 'SLOW', jam: 'JAM' });
 /** @const {number} Meters — hide all traffic dots above this camera altitude */
 const ACTIVATION_ALTITUDE = 8000;
 /** @const {number} Meters — above this altitude, only major roads are fetched */
@@ -2408,9 +2410,14 @@ const trafficLayer = {
     for (let i = start; i < _dots.length; i += stride) {
       const pos = _dots[i].point.position;
       if (!pos) continue;
+      // No per-unit id: these dots are anonymous simulated traffic-flow
+      // points (or, in live mode, TomTom flow samples), never individually
+      // tracked vehicles — a synthetic index-based "VEH-0042" label would
+      // read as a real per-vehicle identifier it isn't. The bracket still
+      // shows the generic VEH type via detectionDraw.js.
       const entry = {
         position: pos,
-        id: `VEH-${String(i).padStart(4, '0')}`,
+        id: null,
         type: 'VEH',
       };
       // Live mode: the detection bracket carries the congestion signal —
@@ -2419,8 +2426,14 @@ const trafficLayer = {
       // lifting"). Keyless mode sets no tier: contacts keep the stock
       // 'vehicle' bracket and the keyless experience stays untouched.
       if (_liveMode) {
-        const tier = trafficBucketTier(_dots[i].bucket || 'sim');
+        const bucket = _dots[i].bucket || 'sim';
+        const tier = trafficBucketTier(bucket);
         if (tier) entry.tier = tier;
+        // Real TomTom congestion reading, when we have one — functional
+        // in place of the removed fake per-vehicle id.
+        if (bucket === 'free' || bucket === 'slow' || bucket === 'jam') {
+          entry.metric = TRAFFIC_BUCKET_LABELS[bucket];
+        }
       }
       result.push(entry);
       if (result.length >= maxCount) break;

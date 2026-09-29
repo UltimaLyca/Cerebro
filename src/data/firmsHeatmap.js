@@ -95,11 +95,34 @@ const scratchCenterB = new Cesium.Cartographic();
 const scratchWindowCoord = new Cesium.Cartesian2();
 
 /**
+ * Build a HUD-detection id for a fire from real detection fields (satellite,
+ * acquisition time, rounded position) rather than its position in the
+ * render array — FIRMS detections have no persistent upstream incident id
+ * (each poll is an independent point detection), so this is still synthetic,
+ * but it's now reproducible from the actual detection instead of arbitrary
+ * render order, and doesn't read as a real per-fire designation it isn't.
+ * Falls back to the index-based form only when the real fields are missing.
+ * Note: this is a DISPLAY id only — pick lookups use the separate
+ * `firms-${fire.index}` key (see _pickIndexById below), so changing this
+ * format does not affect selection.
+ * @param {Object|null|undefined} fire - Internal fire record.
+ * @returns {string}
+ */
+function buildFireDisplayId(fire) {
+  const sat = String(fire?.satellite || fire?.sensor || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const acq = Number.isFinite(fire?.acqMs) && fire.acqMs > 0 ? fire.acqMs : null;
+  const lat = Number.isFinite(fire?.lat) ? fire.lat.toFixed(2) : null;
+  const lon = Number.isFinite(fire?.lon) ? fire.lon.toFixed(2) : null;
+  if (sat && acq !== null && lat !== null && lon !== null) {
+    return `FIRE-${sat}-${acq}-${lat}_${lon}`;
+  }
+  return `FIRE-${String(fire?.index ?? 0).padStart(5, '0')}`;
+}
+
+/**
  * Map one internal fire record (firmsAdapt.js shape) to a plain JSON-safe
  * analyst record (analyst query engine seam). Pure — no Cesium types.
- * Missing/unknown fields are null, never NaN/undefined. The id reuses the
- * layer's FIRE-##### pick-id convention (index keys pick ids and
- * context-store ids, so the two stay consistent).
+ * Missing/unknown fields are null, never NaN/undefined.
  * @param {Object|null|undefined} fire - Internal fire record.
  * @returns {{id: string, lat: number|null, lon: number|null, frp: number|null,
  *   confidence: number|null, satellite: string|null, acqTime: number|null}}
@@ -108,7 +131,7 @@ export function mapAnalystRecord(fire) {
   const num = (v) => (Number.isFinite(v) ? v : null);
   const text = (v) => { const t = String(v ?? '').trim(); return t || null; };
   return {
-    id: `FIRE-${String(fire?.index ?? 0).padStart(5, '0')}`,
+    id: buildFireDisplayId(fire),
     lat: num(fire?.lat),
     lon: num(fire?.lon),
     frp: num(fire?.frp),
@@ -360,7 +383,7 @@ export function createFirmsHeatmapLayer({
       for (const fire of _firesByFrp) {
         result.push({
           position: firePosition(fire),
-          id: `FIRE-${String(fire.index).padStart(5, '0')}`,
+          id: buildFireDisplayId(fire),
           type: 'FIRE',
         });
         if (result.length >= maxCount) break;
