@@ -194,8 +194,8 @@ export function createApplicationCatalog({
           source: 'NASA FIRMS · LIVE',
           feed: sources.firms,
         }),
-        rainRadarLayer,
-        malaysiaTransitLayer,
+        { ...rainRadarLayer },
+        { ...malaysiaTransitLayer },
       ],
       metadata,
     );

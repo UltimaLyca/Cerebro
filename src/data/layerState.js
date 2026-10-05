@@ -594,7 +594,7 @@ export const LAYER_STATE_REGISTRY = Object.freeze([
   Object.freeze({ id: 'local-firms', token: 'w', disposition: 'enabled-only' }),
   Object.freeze({
     id: 'malaysia-transit',
-    token: '0',
+    token: 'zy',
     disposition: 'enabled-only',
   }),
   Object.freeze({
@@ -621,7 +621,7 @@ export const LAYER_STATE_REGISTRY = Object.freeze([
   }),
   Object.freeze({
     id: 'rain-radar',
-    token: '3',
+    token: 'zz',
     disposition: 'enabled-only',
   }),
   Object.freeze({
