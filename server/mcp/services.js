@@ -60,5 +60,6 @@ export function createLocalToolServices(options = {}) {
     fetchImpl: createApiFetch(options),
     appUrl: options.apiBase ?? DEFAULT_API_BASE,
     panelKey: options.panelKey,
+    investigateToken: options.investigateToken ?? process.env.INVESTIGATE_TOKEN,
   });
 }

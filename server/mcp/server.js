@@ -6,6 +6,8 @@ import {
   composeCatalog,
   coreTools,
   catalogForSurface,
+  getInvestigation,
+  investigateTarget,
 } from '../../src/tools/index.js';
 import {
   createGlobePanelResource,
@@ -40,7 +42,9 @@ export function createLocalMcpServer({
   return createMcpServer({
     catalog: catalogForSurface(
       composeCatalog({
-        tools: coreTools,
+        // Investigation starts scans, so it is not a core read-only query;
+        // it is offered only when the server holds the bridge secret.
+        tools: [...coreTools, investigateTarget, getInvestigation],
         services: createLocalToolServices({ apiBase, fetchImpl, panelKey }),
       }),
       'mcp',

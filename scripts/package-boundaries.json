@@ -3335,6 +3335,7 @@
       "src/tools/results.js",
       "src/tools/places.js",
       "src/tools/queries/hazards.js",
+      "src/tools/queries/regional.js",
       "src/tools/queries/space.js",
       "src/tools/queries/aviation.js",
       "src/tools/queries/media.js",
@@ -3401,6 +3402,7 @@
     "exports": ["./tools/services"],
     "modules": [
       "src/tools/services.js",
+      "src/tools/sources/regional.js",
       "src/layers/bikeshare/registry.js",
       "src/layers/bikeshare/source.js",
       "src/layers/cctv/source.js",

@@ -29,6 +29,11 @@ import { createWeatherSource } from '../layers/weather/source.js';
 import { createWindSource } from '../layers/wind/source.js';
 import { createApplicationRequestServices } from '../services/requests.js';
 import { createEventPackSource } from '../sources/eventPacks.js';
+import {
+  createAirQualitySource,
+  createInvestigationSource,
+  createMalaysiaMetSource,
+} from './sources/regional.js';
 import { createInfrastructureSource } from '../sources/infrastructureData.js';
 import {
   createMilitarySource,
@@ -42,7 +47,12 @@ import {
 } from './places.js';
 
 /** Construct every service Core's tools read. */
-export function createToolServices({ fetchImpl, appUrl, panelKey }) {
+export function createToolServices({
+  fetchImpl,
+  appUrl,
+  panelKey,
+  investigateToken,
+}) {
   if (typeof fetchImpl !== 'function')
     throw new TypeError('A fetch implementation is required');
   const requests = createApplicationRequestServices({ fetchImpl });
@@ -87,6 +97,17 @@ export function createToolServices({ fetchImpl, appUrl, panelKey }) {
       tileFetchImpl: fetchImpl,
     }),
     places: createGeocodePlaceService({ fetchImpl }),
+    malaysiaMet: createMalaysiaMetSource({ fetchImpl }),
+    airQuality: createAirQualitySource({ fetchImpl }),
+    // Offered only when the server was given the investigation secret.
+    ...(investigateToken
+      ? {
+          investigate: createInvestigationSource({
+            fetchImpl,
+            token: investigateToken,
+          }),
+        }
+      : {}),
   };
 }
 

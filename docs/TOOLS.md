@@ -8,15 +8,15 @@ To use them from Claude or Codex, see [MCP setup](MCP_SETUP.md).
 
 ## Layers
 
-| Owner                | Responsibility                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------------- |
-| `src/tools/`         | Tool definitions, catalog composition, argument validation, shared `area` and result helpers      |
-| `src/tools/queries/` | Queries, one file per domain, reading only portable source contracts                              |
-| `src/tools/mcp/`     | MCP protocol (JSON-RPC) and a stateless HTTP transport; knows the catalog interface, not queries |
-| `src/tools/functions.js` | Function-calling adapter: tool records and results for function-calling clients |
-| `src/tools/services.js` | The default services: the layers' source factories and request services, given a resolving fetch |
-| `server/mcp/`        | Node composition: points the sources at a running app's `/api` routes; serves stdio and `/mcp`  |
-| `server/standalone/voiceTools.js`, `src/standalone/toolCatalog.js` | Standalone voice composition: the session's tool list and the browser catalog |
+| Owner                                                              | Responsibility                                                                                   |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `src/tools/`                                                       | Tool definitions, catalog composition, argument validation, shared `area` and result helpers     |
+| `src/tools/queries/`                                               | Queries, one file per domain, reading only portable source contracts                             |
+| `src/tools/mcp/`                                                   | MCP protocol (JSON-RPC) and a stateless HTTP transport; knows the catalog interface, not queries |
+| `src/tools/functions.js`                                           | Function-calling adapter: tool records and results for function-calling clients                  |
+| `src/tools/services.js`                                            | The default services: the layers' source factories and request services, given a resolving fetch |
+| `server/mcp/`                                                      | Node composition: points the sources at a running app's `/api` routes; serves stdio and `/mcp`   |
+| `server/standalone/voiceTools.js`, `src/standalone/toolCatalog.js` | Standalone voice composition: the session's tool list and the browser catalog                    |
 
 Dependencies point downward only. `gods-eye-view/tools` and
 `gods-eye-view/tools/mcp` are portable exports: they reach no application,
@@ -258,45 +258,55 @@ and the development server's internal routes. See SECURITY.md.
 
 ## Tools
 
-| Tool                  | Reads         | Returns                                                       |
-| --------------------- | ------------- | ------------------------------------------------------------- |
-| `get_earthquakes`     | `earthquakes` | USGS M2.5+ events in the last 24 hours, strongest first        |
-| `get_active_fires`    | `fires`       | NASA FIRMS detections in an area, highest radiative power first |
-| `get_recent_launches` | `launches`    | Launch Library 2 launches in the last 30 days, newest first    |
-| `aircraft_in_area`    | `aircraft`    | Aircraft in an area, nearest first; `military: true` reads the `military` feed |
-| `find_aircraft`       | `aircraft`    | Aircraft anywhere by callsign, ICAO address or registration    |
-| `get_aircraft_track`  | `aircraft`    | Recent positions of one aircraft, thinned to 200 points        |
-| `get_aircraft_info`   | `aircraft`    | Aircraft type and registration, and flight route, from adsbdb  |
-| `vessels_in_area` | `vessels` | Ships reported by AIS in an area, nearest first, optionally by type |
-| `find_vessel` | `vessels` | Ships anywhere by MMSI, IMO number or name |
-| `get_vessel_track` | `vessels` | Recent positions of one ship, thinned to 200 points |
-| `next_satellite_pass` | `satellites` | Next pass over a place or point (default the ISS), with naked-eye visibility |
-| `satellites_overhead` | `satellites` | Satellites in a CelesTrak group above a place or point now, highest first |
-| `find_cctv_cameras` | `cctv` | Public cameras in an area, nearest first |
-| `get_cctv_snapshot` | `cctv` | The current image from one camera, returned as image content |
-| `find_alpr_cameras` | `alpr` | OpenStreetMap-mapped license plate readers in a US/Canadian area up to 3° |
-| `find_radio_stations` | `radio` | Radio Browser stations by area and/or search terms, with stream URLs |
-| `search_places` | `placeSearch` | Points of interest matching a query within an area (Google Places) |
-| `places_nearby` | `placeSearch` | Notable places around a place or point (Google Places) |
-| `plan_route` | `routing` | Walking, driving or cycling route over OpenStreetMap, with a simplified path |
-| `get_bike_share` | `bikeshare` | Live GBFS stations in an area, with bikes and docks available |
-| `get_transit_vehicles` | `transit` | Live GTFS-Realtime vehicle positions in an area, optionally one route |
-| `get_traffic_flow` | `traffic` | TomTom flow in a city-sized area: speed vs free flow, congested and closed road |
-| `get_weather` | `weather` | Current conditions at a place or point |
-| `get_weather_map` | `weatherMaps` | The latest NOAA radar, satellite or lightning map image over an area |
-| `get_wind` | `wind` | GFS or IFS model wind 10 m above ground at a location |
-| `get_recent_imagery` | `imagery` | The most recent clear Landsat/Sentinel-2 image of an area (VIIRS fallback) |
-| `find_submarine_cables` | `cables` | TeleGeography cables and landing points by area or name (CC BY-NC-SA 3.0) |
-| `find_infrastructure` | `infrastructure` | OpenStreetMap datacenters or dams in an area, nearest first (ODbL) |
-| `get_bhote_koshi_flood` | `events` | The 2026 Bhote Koshi flood: evidence trail in story order, flood path and imagery dates (CC BY-NC 4.0) |
-| `get_regional_brief` | `regional` | What and where a location is, its weather and recent headlines |
-| `get_cyclones` | `cyclones` | Active NHC/CPHC tropical cyclones, optionally in an area |
-| `get_fire_perimeters` | `perimeters` | Mapped WFIGS wildfire perimeters in an area, largest first |
-| `get_terrain_height` | `terrain` | Ground, geoid and ellipsoid heights at up to 20 points |
-| `find_military_installations` | `installations` | OpenStreetMap military sites in an area of at most 10° per side |
-| `get_map_features` | `features` | Administrative areas, named places or monuments at a location (needs Overpass) |
-| `situation_brief` | `weather` | Weather, earthquakes, fires, aircraft, ships and cyclones for an area, by section |
-| `military_awareness` | `military` | Military and other aircraft, ships and military installations within 250 km of a point, by section |
-| `get_hud_caption` | `weather`, `summary` | The app's heads-up display caption for an area |
-| `show_in_gods_eye_view` | `app` | A view in God's Eye View: the live panel in clients with MCP Apps, and a link everywhere; takes another answer's view or an area or camera, layers, style, map, marks and something to follow |
-| `panel_request` | `app` | Panel only: loads a path from the app's server for the God's Eye View panel |
+| Tool                          | Reads                | Returns                                                                                                                                                                                       |
+| ----------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_earthquakes`             | `earthquakes`        | USGS M2.5+ events in the last 24 hours, strongest first                                                                                                                                       |
+| `get_active_fires`            | `fires`              | NASA FIRMS detections in an area, highest radiative power first                                                                                                                               |
+| `get_recent_launches`         | `launches`           | Launch Library 2 launches in the last 30 days, newest first                                                                                                                                   |
+| `aircraft_in_area`            | `aircraft`           | Aircraft in an area, nearest first; `military: true` reads the `military` feed                                                                                                                |
+| `find_aircraft`               | `aircraft`           | Aircraft anywhere by callsign, ICAO address or registration                                                                                                                                   |
+| `get_aircraft_track`          | `aircraft`           | Recent positions of one aircraft, thinned to 200 points                                                                                                                                       |
+| `get_aircraft_info`           | `aircraft`           | Aircraft type and registration, and flight route, from adsbdb                                                                                                                                 |
+| `vessels_in_area`             | `vessels`            | Ships reported by AIS in an area, nearest first, optionally by type                                                                                                                           |
+| `find_vessel`                 | `vessels`            | Ships anywhere by MMSI, IMO number or name                                                                                                                                                    |
+| `get_vessel_track`            | `vessels`            | Recent positions of one ship, thinned to 200 points                                                                                                                                           |
+| `next_satellite_pass`         | `satellites`         | Next pass over a place or point (default the ISS), with naked-eye visibility                                                                                                                  |
+| `satellites_overhead`         | `satellites`         | Satellites in a CelesTrak group above a place or point now, highest first                                                                                                                     |
+| `find_cctv_cameras`           | `cctv`               | Public cameras in an area, nearest first                                                                                                                                                      |
+| `get_cctv_snapshot`           | `cctv`               | The current image from one camera, returned as image content                                                                                                                                  |
+| `find_alpr_cameras`           | `alpr`               | OpenStreetMap-mapped license plate readers in a US/Canadian area up to 3°                                                                                                                     |
+| `find_radio_stations`         | `radio`              | Radio Browser stations by area and/or search terms, with stream URLs                                                                                                                          |
+| `search_places`               | `placeSearch`        | Points of interest matching a query within an area (Google Places)                                                                                                                            |
+| `places_nearby`               | `placeSearch`        | Notable places around a place or point (Google Places)                                                                                                                                        |
+| `plan_route`                  | `routing`            | Walking, driving or cycling route over OpenStreetMap, with a simplified path                                                                                                                  |
+| `get_bike_share`              | `bikeshare`          | Live GBFS stations in an area, with bikes and docks available                                                                                                                                 |
+| `get_transit_vehicles`        | `transit`            | Live GTFS-Realtime vehicle positions in an area, optionally one route                                                                                                                         |
+| `get_traffic_flow`            | `traffic`            | TomTom flow in a city-sized area: speed vs free flow, congested and closed road                                                                                                               |
+| `get_weather`                 | `weather`            | Current conditions at a place or point                                                                                                                                                        |
+| `get_weather_map`             | `weatherMaps`        | The latest NOAA radar, satellite or lightning map image over an area                                                                                                                          |
+| `get_wind`                    | `wind`               | GFS or IFS model wind 10 m above ground at a location                                                                                                                                         |
+| `get_recent_imagery`          | `imagery`            | The most recent clear Landsat/Sentinel-2 image of an area (VIIRS fallback)                                                                                                                    |
+| `find_submarine_cables`       | `cables`             | TeleGeography cables and landing points by area or name (CC BY-NC-SA 3.0)                                                                                                                     |
+| `find_infrastructure`         | `infrastructure`     | OpenStreetMap datacenters or dams in an area, nearest first (ODbL)                                                                                                                            |
+| `get_bhote_koshi_flood`       | `events`             | The 2026 Bhote Koshi flood: evidence trail in story order, flood path and imagery dates (CC BY-NC 4.0)                                                                                        |
+| `get_regional_brief`          | `regional`           | What and where a location is, its weather and recent headlines                                                                                                                                |
+| `get_cyclones`                | `cyclones`           | Active NHC/CPHC tropical cyclones, optionally in an area                                                                                                                                      |
+| `get_fire_perimeters`         | `perimeters`         | Mapped WFIGS wildfire perimeters in an area, largest first                                                                                                                                    |
+| `get_terrain_height`          | `terrain`            | Ground, geoid and ellipsoid heights at up to 20 points                                                                                                                                        |
+| `find_military_installations` | `installations`      | OpenStreetMap military sites in an area of at most 10° per side                                                                                                                               |
+| `get_map_features`            | `features`           | Administrative areas, named places or monuments at a location (needs Overpass)                                                                                                                |
+| `situation_brief`             | `weather`            | Weather, earthquakes, fires, aircraft, ships and cyclones for an area, by section                                                                                                             |
+| `military_awareness`          | `military`           | Military and other aircraft, ships and military installations within 250 km of a point, by section                                                                                            |
+| `get_hud_caption`             | `weather`, `summary` | The app's heads-up display caption for an area                                                                                                                                                |
+| `show_in_gods_eye_view`       | `app`                | A view in God's Eye View: the live panel in clients with MCP Apps, and a link everywhere; takes another answer's view or an area or camera, layers, style, map, marks and something to follow |
+| `panel_request`               | `app`                | Panel only: loads a path from the app's server for the God's Eye View panel                                                                                                                   |
+
+## Malaysia and investigation tools
+
+`get_malaysia_alerts` (MET Malaysia earthquakes and warnings) and
+`get_air_quality` (modelled city air quality) are core read-only queries.
+`investigate_target` and `get_investigation` start and read SpiderFoot scans
+(see [Investigation bridge](INVESTIGATE.md)). Starting a scan is an action, so
+they are not in `coreTools`: `server/mcp/server.js` adds them, and
+`composeCatalog` leaves them out unless the `investigate` service exists, which
+needs `INVESTIGATE_TOKEN` in the MCP server's environment. Voice never has them.

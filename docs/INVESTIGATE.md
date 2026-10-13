@@ -34,6 +34,10 @@ targets you are authorised to scan. At most three scans run at once.
 | `GET /api/investigate/results?id=&type=`       | up to 500 condensed events                 |
 | `POST /api/investigate/stop` `{id}`            | `{stopped: true}`                          |
 
+From an assistant, the MCP server offers `investigate_target` and
+`get_investigation` when `INVESTIGATE_TOKEN` is in its environment; see
+[Tools](TOOLS.md).
+
 The tests (`node --test server/providers/spiderfoot.test.mjs
 server/providers/spiderfoot/target.test.mjs`) run against a fake SpiderFoot
 that reproduces the response shapes in SpiderFoot's `sfwebui.py`. They are not
