@@ -366,6 +366,13 @@ export const DATA_CREDITS = [
       '(free for personal/educational use)',
   },
   {
+    key: 'malaysia-met',
+    html:
+      'Malaysia earthquakes and weather warnings: ' +
+      '<a href="https://developer.data.gov.my/realtime-api/weather" target="_blank" rel="noopener">' +
+      'MET Malaysia via data.gov.my</a> — Malaysia Public Sector Open Data',
+  },
+  {
     key: 'malaysia-transit',
     html:
       'Malaysia transit (KTMB, Rapid Bus/MRT Feeder, myBAS): ' +

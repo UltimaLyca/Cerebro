@@ -33,6 +33,7 @@ import { createBhoteKoshiEventLayer } from '../data/bhoteKoshiEvent.js';
 import { createBhoteKoshiLocatorLayer } from '../data/bhoteKoshiLocator.js';
 import rainRadarLayer from '../data/rainRadar.js';
 import malaysiaTransitLayer from '../data/malaysiaTransit.js';
+import malaysiaMetLayer from '../data/malaysiaMet.js';
 
 /**
  * Hardware-local layers are registered like any other but never enter share
@@ -174,6 +175,7 @@ export function createApplicationCatalog({
         }),
         { ...rainRadarLayer },
         { ...malaysiaTransitLayer },
+        { ...malaysiaMetLayer },
       ],
       metadata,
     );

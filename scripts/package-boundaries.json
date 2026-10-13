@@ -1426,6 +1426,7 @@
       "src/cyberSonarGpu.js",
       "src/scenes/nepalEvidencePack.js",
       "src/data/bhoteKoshiEvent.js",
+      "src/data/malaysiaMet.js",
       "src/data/malaysiaTransit.js",
       "src/data/rainRadar.js",
       "src/ui/imagerySplit.js",
@@ -2222,6 +2223,7 @@
   "application-layer-construction": {
     "exports": ["./application/layers"],
     "modules": [
+      "src/data/malaysiaMet.js",
       "src/data/malaysiaTransit.js",
       "src/data/rainRadar.js",
       "src/cyberSonar.js",

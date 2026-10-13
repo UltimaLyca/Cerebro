@@ -27,6 +27,7 @@ import { firePerimetersProxy } from './firePerimeters.js';
 import { cycloneProxy } from './cyclones.js';
 import { windProxy } from './wind.js';
 import { malaysiaTransitProxy } from './transit-malaysia.js';
+import { malaysiaMetProxy } from './met-malaysia.js';
 
 /**
  * Construct the local provider plugins in their established order.
@@ -62,6 +63,7 @@ function localProviderPlugins({ realtime } = {}) {
     mapillaryProxy(),
     firePerimetersProxy(),
     malaysiaTransitProxy(),
+    malaysiaMetProxy(),
     keySetupEndpoint(),
   ];
 }

@@ -299,6 +299,12 @@ const layers = [
     noQuery: 'imagery tiles; no countable records',
   },
   {
+    id: 'malaysia-met',
+    aliases: ['malaysia earthquakes', 'met malaysia', 'malaysia warnings'],
+    context: false,
+    noQuery: 'MET alerts; use the layer stats',
+  },
+  {
     id: 'malaysia-transit',
     aliases: ['malaysia transit', 'malaysian transit', 'ktmb'],
     context: false,

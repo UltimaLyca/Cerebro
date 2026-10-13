@@ -28,6 +28,7 @@
   ["weather-radar", "v"],
   ["weather-satellite", "o"],
   ["wind", "k"],
+  ["malaysia-met", "zx"],
   ["malaysia-transit", "zy"],
   ["rain-radar", "zz"]
 ]
