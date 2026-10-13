@@ -55,11 +55,16 @@ function buildSelectionEntry(key, vehicle) {
     vehicle.vehicleLabel || vehicle.id,
     vehicle.source + (vehicle.routeId ? ` · route ${vehicle.routeId}` : ''),
   ];
-  if (Number.isFinite(vehicle.speedMps)) lines.push(`${Math.round(vehicle.speedMps * 3.6)} km/h`);
+  if (Number.isFinite(vehicle.speedMps))
+    lines.push(`${Math.round(vehicle.speedMps * 3.6)} km/h`);
   const [title, ...details] = lines;
   return {
     id: String(key),
-    position: Cesium.Cartesian3.fromDegrees(vehicle.lon, vehicle.lat, POINT_HEIGHT_OFFSET_M),
+    position: Cesium.Cartesian3.fromDegrees(
+      vehicle.lon,
+      vehicle.lat,
+      POINT_HEIGHT_OFFSET_M,
+    ),
     variant: 'selected',
     selected: true,
     protected: true,
@@ -107,7 +112,11 @@ function installClickHandler(viewer) {
   _clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
   _clickHandler.setInputAction((click) => {
     const picked = viewer.scene.pick(click.position);
-    if (picked?.primitive && typeof picked.primitive.id === 'string' && _records.has(picked.primitive.id)) {
+    if (
+      picked?.primitive &&
+      typeof picked.primitive.id === 'string' &&
+      _records.has(picked.primitive.id)
+    ) {
       selectVehicle(picked.primitive.id);
       return;
     }
@@ -126,9 +135,14 @@ function renderVehicles(vehicles) {
   governorRequestRender('malaysia-transit');
   const seen = new Set();
   for (const vehicle of vehicles) {
-    if (!Number.isFinite(vehicle.lat) || !Number.isFinite(vehicle.lon)) continue;
+    if (!Number.isFinite(vehicle.lat) || !Number.isFinite(vehicle.lon))
+      continue;
     seen.add(vehicle.id);
-    const position = Cesium.Cartesian3.fromDegrees(vehicle.lon, vehicle.lat, POINT_HEIGHT_OFFSET_M);
+    const position = Cesium.Cartesian3.fromDegrees(
+      vehicle.lon,
+      vehicle.lat,
+      POINT_HEIGHT_OFFSET_M,
+    );
     const existing = _records.get(vehicle.id);
     if (existing) {
       existing.point.position = position;
@@ -162,7 +176,10 @@ async function refresh(viewer) {
   const controller = new AbortController();
   _abort = controller;
   try {
-    const response = await fetch(ENDPOINT, { signal: controller.signal, cache: 'no-store' });
+    const response = await fetch(ENDPOINT, {
+      signal: controller.signal,
+      cache: 'no-store',
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
     if (!_enabled) return;
@@ -181,7 +198,8 @@ async function refresh(viewer) {
 
 function clearAll(viewer) {
   clearSelection();
-  for (const record of _records.values()) _pointCollection?.remove(record.point);
+  for (const record of _records.values())
+    _pointCollection?.remove(record.point);
   _records.clear();
 }
 
@@ -195,7 +213,9 @@ export default {
 
   init(viewer) {
     _viewer = viewer;
-    _pointCollection = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+    _pointCollection = viewer.scene.primitives.add(
+      new Cesium.PointPrimitiveCollection(),
+    );
     installClickHandler(viewer);
   },
 

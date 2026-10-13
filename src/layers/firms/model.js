@@ -56,7 +56,8 @@ export function createModel({
    * Missing/unknown fields are null, never NaN/undefined.
    * @param {Object|null|undefined} fire - Internal fire record.
    * @returns {{id: string, lat: number|null, lon: number|null, frp: number|null,
-   *   confidence: number|null, satellite: string|null, acqTime: number|null}}
+   *   confidence: number|null, satellite: string|null, sensor: string|null,
+   *   acqTime: number|null}}
    */
 
   function mapAnalystRecord(fire) {
@@ -72,6 +73,7 @@ export function createModel({
       frp: num(fire?.frp),
       confidence: num(fire?.confidence), // normalized 0..1 (firmsAdapt.normalizeConfidence)
       satellite: text(fire?.satellite) || text(fire?.sensor),
+      sensor: text(fire?.sensor), // VIIRS or MODIS
       acqTime:
         Number.isFinite(fire?.acqMs) && fire.acqMs > 0 ? fire.acqMs : null, // epoch ms; 0 = unparseable → null
     };

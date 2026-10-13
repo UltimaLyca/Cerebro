@@ -1,5 +1,8 @@
 import { createRequire } from 'node:module';
-import { readResponseBytesCapped, coalesceProxyRequest } from '../../src/sources/httpBody.js';
+import {
+  readResponseBytesCapped,
+  coalesceProxyRequest,
+} from '../../src/sources/httpBody.js';
 
 /**
  * Malaysia GTFS-Realtime vehicle-position proxy — live train/bus positions
@@ -24,15 +27,25 @@ export function malaysiaTransitProxy() {
   const TTL_MS = 25_000;
   const UPSTREAM_TIMEOUT_MS = 12_000;
   const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
-  const GtfsRealtimeBindings = createRequire(import.meta.url)('gtfs-realtime-bindings');
+  const GtfsRealtimeBindings = createRequire(import.meta.url)(
+    'gtfs-realtime-bindings',
+  );
 
   /** All feeds documented at developer.data.gov.my/realtime-api/gtfs-realtime. */
   const FEEDS = Object.freeze([
     { id: 'ktmb', label: 'KTMB' },
     { id: 'prasarana', category: 'rapid-bus-kl', label: 'Rapid Bus KL' },
     { id: 'prasarana', category: 'rapid-bus-mrtfeeder', label: 'MRT Feeder' },
-    { id: 'prasarana', category: 'rapid-bus-kuantan', label: 'Rapid Bus Kuantan' },
-    { id: 'prasarana', category: 'rapid-bus-penang', label: 'Rapid Bus Penang' },
+    {
+      id: 'prasarana',
+      category: 'rapid-bus-kuantan',
+      label: 'Rapid Bus Kuantan',
+    },
+    {
+      id: 'prasarana',
+      category: 'rapid-bus-penang',
+      label: 'Rapid Bus Penang',
+    },
     { id: 'mybas-kangar', label: 'myBAS Kangar' },
     { id: 'mybas-alor-setar', label: 'myBAS Alor Setar' },
     { id: 'mybas-kota-bharu', label: 'myBAS Kota Bharu' },
@@ -49,7 +62,9 @@ export function malaysiaTransitProxy() {
   const inFlight = new Map();
 
   function feedUrl(feed) {
-    const url = new URL(`https://api.data.gov.my/gtfs-realtime/vehicle-position/${feed.id}/`);
+    const url = new URL(
+      `https://api.data.gov.my/gtfs-realtime/vehicle-position/${feed.id}/`,
+    );
     if (feed.category) url.searchParams.set('category', feed.category);
     return url;
   }
@@ -57,15 +72,24 @@ export function malaysiaTransitProxy() {
   async function fetchOneFeed(feed) {
     const sourceKey = feed.category ? `${feed.id}:${feed.category}` : feed.id;
     try {
-      const upstream = await fetch(feedUrl(feed), { signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
+      const upstream = await fetch(feedUrl(feed), {
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      });
       if (!upstream.ok) throw new Error(`HTTP ${upstream.status}`);
       const bytes = await readResponseBytesCapped(upstream, MAX_RESPONSE_BYTES);
-      const parsed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(bytes);
+      const parsed =
+        GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(bytes);
       const vehicles = [];
       for (const entity of parsed.entity || []) {
         const v = entity.vehicle;
         const pos = v?.position;
-        if (!v || !pos || !Number.isFinite(pos.latitude) || !Number.isFinite(pos.longitude)) continue;
+        if (
+          !v ||
+          !pos ||
+          !Number.isFinite(pos.latitude) ||
+          !Number.isFinite(pos.longitude)
+        )
+          continue;
         vehicles.push({
           id: `${sourceKey}-${v.vehicle?.id || entity.id}`,
           source: feed.label,
@@ -76,12 +100,26 @@ export function malaysiaTransitProxy() {
           lon: pos.longitude,
           bearingDeg: Number.isFinite(pos.bearing) ? pos.bearing : null,
           speedMps: Number.isFinite(pos.speed) ? pos.speed : null,
-          timestamp: Number(v.timestamp) > 0 ? Number(v.timestamp) * 1000 : null,
+          timestamp:
+            Number(v.timestamp) > 0 ? Number(v.timestamp) * 1000 : null,
         });
       }
-      return { id: sourceKey, label: feed.label, ok: true, count: vehicles.length, vehicles };
+      return {
+        id: sourceKey,
+        label: feed.label,
+        ok: true,
+        count: vehicles.length,
+        vehicles,
+      };
     } catch (error) {
-      return { id: sourceKey, label: feed.label, ok: false, count: 0, error: error?.message || String(error), vehicles: [] };
+      return {
+        id: sourceKey,
+        label: feed.label,
+        ok: false,
+        count: 0,
+        error: error?.message || String(error),
+        vehicles: [],
+      };
     }
   }
 
@@ -103,7 +141,11 @@ export function malaysiaTransitProxy() {
         return;
       }
       if (cache && Date.now() - cache.at < TTL_MS) {
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-GEV-Cache': 'HIT' });
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'X-GEV-Cache': 'HIT',
+        });
         res.end(cache.body);
         return;
       }
@@ -111,17 +153,29 @@ export function malaysiaTransitProxy() {
       const request = coalesceProxyRequest(inFlight, 'refresh', refresh);
       try {
         const fresh = await request.promise;
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-GEV-Cache': request.shared ? 'INFLIGHT' : 'MISS' });
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'X-GEV-Cache': request.shared ? 'INFLIGHT' : 'MISS',
+        });
         res.end(fresh.body);
       } catch (error) {
         if (stale) {
-          console.warn(`[malaysia-transit-proxy] refresh failed (${error?.message || error}) — serving stale`);
-          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-GEV-Cache': 'STALE-ERROR' });
+          console.warn(
+            `[malaysia-transit-proxy] refresh failed (${error?.message || error}) — serving stale`,
+          );
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+            'X-GEV-Cache': 'STALE-ERROR',
+          });
           res.end(stale.body);
           return;
         }
         res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Malaysia GTFS-Realtime unavailable' }));
+        res.end(
+          JSON.stringify({ error: 'Malaysia GTFS-Realtime unavailable' }),
+        );
       }
     });
   }
