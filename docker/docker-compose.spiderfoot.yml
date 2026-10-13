@@ -1,0 +1,30 @@
+# SpiderFoot sidecar for the investigation bridge (docs/INVESTIGATE.md).
+# SpiderFoot's web UI has no authentication, so it publishes NO host port:
+# it is reachable only from other services on this compose network. Run it
+# next to Cerebro with:
+#   docker compose -f docker/docker-compose.affantorla.yml \
+#                  -f docker/docker-compose.spiderfoot.yml up -d
+# and set SPIDERFOOT_URL=http://spiderfoot:5001 plus INVESTIGATE_TOKEN for cerebro.
+services:
+  spiderfoot:
+    build:
+      context: https://github.com/smicallef/spiderfoot.git#master
+    container_name: spiderfoot
+    command: ["python3", "./sf.py", "-l", "0.0.0.0:5001"]
+    restart: unless-stopped
+    volumes:
+      - spiderfoot-data:/var/lib/spiderfoot
+    networks:
+      - docker_default
+
+  cerebro:
+    environment:
+      SPIDERFOOT_URL: http://spiderfoot:5001
+      INVESTIGATE_TOKEN: ${INVESTIGATE_TOKEN:?set INVESTIGATE_TOKEN}
+
+volumes:
+  spiderfoot-data:
+
+networks:
+  docker_default:
+    external: true
