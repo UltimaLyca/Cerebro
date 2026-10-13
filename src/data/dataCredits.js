@@ -366,6 +366,13 @@ export const DATA_CREDITS = [
       '(free for personal/educational use)',
   },
   {
+    key: 'air-quality',
+    html:
+      'Air quality (modelled): ' +
+      '<a href="https://open-meteo.com/" target="_blank" rel="noopener">' +
+      'Weather data by Open-Meteo.com</a> — CAMS model, CC BY 4.0',
+  },
+  {
     key: 'malaysia-met',
     html:
       'Malaysia earthquakes and weather warnings: ' +

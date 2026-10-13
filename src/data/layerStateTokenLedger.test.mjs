@@ -128,12 +128,13 @@ test('reservation ledger is complete, pinned, and rejects duplicate or malformed
     { ...parseLayerStateTokenReservations(reservationRows) },
     { ...LAYER_STATE_TOKEN_RESERVATIONS },
   );
-  assert.equal(Object.keys(LAYER_STATE_TOKEN_RESERVATIONS).length, 32);
+  assert.equal(Object.keys(LAYER_STATE_TOKEN_RESERVATIONS).length, 33);
   assert.deepEqual(
     { ...LAYER_STATE_TOKEN_RESERVATIONS },
     {
       ...LEGACY_LAYER_STATE_TOKENS,
       'street-level': '0',
+      'air-quality': 'zw',
       'malaysia-met': 'zx',
       'malaysia-transit': 'zy',
       'rain-radar': 'zz',
@@ -275,7 +276,7 @@ test('PR B manually replaces provisional 3 with 4 after PR A publishes 3', () =>
     );
     const corrected = runCheck();
     assert.equal(corrected.status, 0, corrected.stderr);
-    assert.match(corrected.stdout, /33 published, 1 new/);
+    assert.match(corrected.stdout, /34 published, 1 new/);
   });
 });
 
@@ -369,7 +370,7 @@ test('an isolated valid two-character fixture round-trips an l field beyond the 
     const params = new URLSearchParams([['v', '2']]);
     codec.encodeLayerStateParams(params, state);
     assert.ok(params.get('l').length > 64, 'fixture must cross the old cap');
-    assert.equal(params.get('l').length, 78);
+    assert.equal(params.get('l').length, 81);
     const restored = codec.decodeLayerStateParams(params);
     assert.deepEqual(restored?.enabledLayerIds, expectedLayerIds);
     assert.deepEqual(restored?.options, state.options);
@@ -387,7 +388,7 @@ test('checker reads a complete future base ledger and rejects retired-token reus
     },
     (cwd) => {
       const published = readPublishedLayerStateReservations('HEAD', cwd);
-      assert.equal(Object.keys(published).length, 33);
+      assert.equal(Object.keys(published).length, 34);
       assert.equal(published['retired-layer'], '00');
       assert.throws(
         () =>

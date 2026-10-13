@@ -299,6 +299,12 @@ const layers = [
     noQuery: 'imagery tiles; no countable records',
   },
   {
+    id: 'air-quality',
+    aliases: ['air quality', 'haze', 'pollution', 'aqi'],
+    context: false,
+    noQuery: 'modelled city air quality; use the layer stats',
+  },
+  {
     id: 'malaysia-met',
     aliases: ['malaysia earthquakes', 'met malaysia', 'malaysia warnings'],
     context: false,
